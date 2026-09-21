@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Todo</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1220" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Todo">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <!--MANIFEST-->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app" hidden>
+    <header class="top">
+      <div class="hello">
+        <span class="hello-sub">Hello,</span>
+        <h1 id="uname"></h1>
+      </div>
+      <button id="chip" class="rating-chip" data-tab="insights" aria-label="Open insights"></button>
+    </header>
+
+    <main id="view"></main>
+
+    <form id="addbar" class="addbar" autocomplete="off">
+      <div id="duepill" class="duepill" hidden>
+        <span id="duetext"></span>
+        <button type="button" id="dueclear" aria-label="Remove due date">✕</button>
+      </div>
+      <div class="addrow">
+        <label class="iconbtn" title="Due date and time" aria-label="Set due date and time">
+          <span aria-hidden="true">📅</span>
+          <input id="due" type="datetime-local">
+        </label>
+        <input id="newtext" type="text" maxlength="200" placeholder="Add a task…" enterkeyhint="done" aria-label="New task">
+        <button class="addbtn" type="submit" aria-label="Add task">＋</button>
+      </div>
+    </form>
+
+    <nav class="tabbar" aria-label="Sections">
+      <button data-tab="tasks" class="on"><span aria-hidden="true">✅</span>Tasks</button>
+      <button data-tab="insights"><span aria-hidden="true">📈</span>Insights</button>
+    </nav>
+  </div>
+
+  <div id="welcome" hidden>
+    <form class="welcome-card" id="welcomeform">
+      <div class="welcome-logo" aria-hidden="true">✓</div>
+      <h1>Your todo lists</h1>
+      <p>Enter your name to open your space. New here? It's created for you.</p>
+      <input id="welcomename" maxlength="32" placeholder="e.g. rajkumar" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="Your name">
+      <button type="submit" class="primary">Open</button>
+      <p class="fine" id="welcomeerr"></p>
+    </form>
+  </div>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-back" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true"></div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
