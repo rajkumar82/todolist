@@ -163,20 +163,13 @@
 
   function tasksHtml() {
     const list = curList();
-    let picker;
-    if (state.lists.length) {
-      const options = state.lists.map((l) => {
-        const open = l.items.filter((i) => !i.done).length;
-        return `<option value="${l.id}"${list && l.id === list.id ? ' selected' : ''}>${esc(l.emoji)} ${esc(l.name)} · ${open} open</option>`;
-      }).join('');
-      picker = `<div class="listpicker"><select id="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select></div>`;
-    } else {
-      picker = `<button class="chip new" data-newlist>＋ New list</button>`;
-    }
-
     if (!list) {
-      return `${picker}<div class="empty"><span class="em">🗂️</span><b>No lists yet</b>Create one to start adding tasks.</div>`;
+      return `<button class="chip new" data-newlist>＋ New list</button><div class="empty"><span class="em">🗂️</span><b>No lists yet</b>Create one to start adding tasks.</div>`;
     }
+    const options = state.lists.map((l) => {
+      const open = l.items.filter((i) => !i.done).length;
+      return `<option value="${l.id}"${l.id === list.id ? ' selected' : ''}>${esc(l.emoji)} ${esc(l.name)} · ${open} open</option>`;
+    }).join('');
 
     const open = list.items.filter((i) => !i.done).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) || a.createdAt - b.createdAt);
     const done = list.items.filter((i) => i.done).sort((a, b) => b.completedAt - a.completedAt);
@@ -192,8 +185,11 @@
       if (done.length) body += `<div class="sep">Completed · ${done.length}</div><ul class="items">${done.map(itemHtml).join('')}</ul>`;
     }
 
-    return `${picker}
-      <div class="listhead"><span class="big" aria-hidden="true">${esc(list.emoji)}</span><h2>${esc(list.name)}</h2>
+    return `<div class="listhead">
+        <div class="listname">
+          <select id="listselect" class="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select>
+          <span class="big" aria-hidden="true">${esc(list.emoji)}</span><h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
+        </div>
         <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button>
         <button class="iconbtn" data-editlist aria-label="Edit list">✏️</button></div>
       <div class="sub">${summary}</div>
