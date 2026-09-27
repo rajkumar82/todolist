@@ -130,6 +130,18 @@
   };
   const fromLocalInput = (v) => (v ? new Date(v).getTime() : null);
 
+  const WEEKDAY_SHORT = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun' };
+  const fmtTimeHHMM = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+  function describeRecurrence(r) {
+    const time = r.time ? ` · ${fmtTimeHHMM(r.time)}` : '';
+    return r.freq === 'weekly'
+      ? `Weekly · ${r.daysOfWeek.map((d) => WEEKDAY_SHORT[d]).join(', ')}${time}`
+      : `Monthly · due by day ${r.dayOfMonth}${time}`;
+  }
+
   // ---------------------------------------------------------------- render
   const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
@@ -142,9 +154,10 @@
       const soon = !it.done && !late && it.dueAt - Date.now() < DAY;
       due = `<span class="due${late ? ' late' : soon ? ' soon' : ''}">${late ? '⚠ Overdue · ' : '🕒 '}${esc(fmtDue(it.dueAt))}</span>`;
     }
+    const recur = it.recurringId != null ? '<span class="recur" title="Recurring">🔁</span>' : '';
     return `<li class="item${it.done ? ' done' : ''}${isNew ? ' new' : ''}" data-id="${it.id}">
       <button class="check" data-toggle="${it.id}" role="checkbox" aria-checked="${it.done}" aria-label="${it.done ? 'Mark not done' : 'Mark done'}: ${esc(it.text)}"><i>${CHECK}</i></button>
-      <button class="body" data-edit="${it.id}"><span class="txt">${esc(it.text)}</span>${due}</button>
+      <button class="body" data-edit="${it.id}"><span class="txt">${recur}${esc(it.text)}</span>${due}</button>
     </li>`;
   }
 
@@ -181,6 +194,7 @@
 
     return `${picker}
       <div class="listhead"><span class="big" aria-hidden="true">${esc(list.emoji)}</span><h2>${esc(list.name)}</h2>
+        <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button>
         <button class="iconbtn" data-editlist aria-label="Edit list">✏️</button></div>
       <div class="sub">${summary}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>${body}`;
@@ -355,12 +369,15 @@
   }
 
   function itemSheet(list, item) {
+    const recurNote = item.recurringId != null
+      ? '<p class="fine">🔁 Generated from a recurring habit. Editing or deleting only affects this occurrence.</p>' : '';
     const p = openSheet(`<form>
       <h3>Edit task</h3>
       <label class="field"><span>Task</span><input name="text" maxlength="200" value="${esc(item.text)}" autocomplete="off" required></label>
       <label class="field"><span>Due date and time</span><input name="due" type="datetime-local" value="${item.dueAt != null ? toLocalInput(item.dueAt) : ''}"></label>
       <div class="btns"><button type="button" data-cleardue>Clear due date</button></div>
       <div class="btns"><button type="button" class="danger" data-del>Delete</button><button class="primary" type="submit">Save</button></div>
+      ${recurNote}
     </form>`);
     const due = p.querySelector('[name=due]');
     p.querySelector('[data-cleardue]').onclick = () => { due.value = ''; };
@@ -377,6 +394,117 @@
       closeSheet();
       render();
     };
+  }
+
+  function habitsSheet(list) {
+    const items = state.recurring.filter((r) => r.listId === list.id);
+    const rows = items.map((r) => `
+      <div class="habitrow${r.active ? '' : ' paused'}">
+        <button type="button" class="hbody" data-edithabit="${r.id}">
+          <span class="htext">${esc(r.text)}</span>
+          <span class="hsched">${esc(describeRecurrence(r))}${r.active ? '' : ' · Paused'}</span>
+        </button>
+        <button type="button" class="iconbtn" data-toggleactive="${r.id}" aria-label="${r.active ? 'Pause' : 'Resume'}">${r.active ? '⏸️' : '▶️'}</button>
+      </div>`).join('');
+    const p = openSheet(`
+      <h3>Habits · ${esc(list.name)}</h3>
+      ${items.length ? `<div class="habitlist">${rows}</div>` : '<p class="fine">No habits yet in this list.</p>'}
+      <div class="btns" style="margin-top:14px"><button type="button" class="primary" data-newhabit style="width:100%">＋ New habit</button></div>
+    `);
+    p.querySelectorAll('[data-edithabit]').forEach((el) => {
+      el.onclick = () => habitFormSheet(list, items.find((r) => r.id === el.dataset.edithabit));
+    });
+    p.querySelectorAll('[data-toggleactive]').forEach((el) => {
+      el.onclick = () => {
+        const r = items.find((x) => x.id === el.dataset.toggleactive);
+        r.active = !r.active;
+        send('PATCH', `/recurring/${r.id}`, { active: r.active });
+        habitsSheet(list);
+      };
+    });
+    p.querySelector('[data-newhabit]').onclick = () => habitFormSheet(list, null);
+  }
+
+  function habitFormSheet(list, r) {
+    let freqVal = r ? r.freq : 'weekly';
+    const days = new Set(r && r.freq === 'weekly' ? r.daysOfWeek : []);
+    const p = openSheet(`<form>
+      <h3>${r ? 'Edit habit' : 'New habit'}</h3>
+      <label class="field"><span>Name</span><input name="text" maxlength="200" placeholder="e.g. Pull ups" value="${r ? esc(r.text) : ''}" autocomplete="off" required></label>
+      <div class="freqswitch">
+        <button type="button" class="${freqVal === 'weekly' ? 'on' : ''}" data-freq="weekly"${r ? ' disabled' : ''}>Weekly</button>
+        <button type="button" class="${freqVal === 'monthly' ? 'on' : ''}" data-freq="monthly"${r ? ' disabled' : ''}>Monthly</button>
+      </div>
+      <div data-weekly${freqVal !== 'weekly' ? ' hidden' : ''}>
+        <div class="weekdays">${[1, 2, 3, 4, 5, 6, 7].map((d) => `<button type="button" class="${days.has(d) ? 'on' : ''}" data-day="${d}">${WEEKDAY_SHORT[d].slice(0, 2)}</button>`).join('')}</div>
+      </div>
+      <div data-monthly${freqVal !== 'monthly' ? ' hidden' : ''}>
+        <label class="field"><span>Due by day of month</span><input name="dayOfMonth" type="number" min="1" max="31" value="${r && r.freq === 'monthly' ? r.dayOfMonth : 7}"></label>
+      </div>
+      <label class="field"><span>Time (optional)</span><input name="time" type="time" value="${r && r.time ? r.time : ''}"></label>
+      <div class="btns">${r ? '<button type="button" class="danger" data-del>Delete</button>' : '<button type="button" data-back>Cancel</button>'}<button class="primary" type="submit">Save</button></div>
+    </form>`);
+    if (!r) setTimeout(() => p.querySelector('[name=text]').focus(), 50);
+
+    if (!r) {
+      p.querySelectorAll('[data-freq]').forEach((b) => {
+        b.onclick = () => {
+          freqVal = b.dataset.freq;
+          p.querySelectorAll('[data-freq]').forEach((x) => x.classList.toggle('on', x === b));
+          p.querySelector('[data-weekly]').hidden = freqVal !== 'weekly';
+          p.querySelector('[data-monthly]').hidden = freqVal !== 'monthly';
+        };
+      });
+    }
+    p.querySelectorAll('[data-day]').forEach((b) => {
+      b.onclick = () => {
+        const d = Number(b.dataset.day);
+        if (days.has(d)) days.delete(d); else days.add(d);
+        b.classList.toggle('on', days.has(d));
+      };
+    });
+    const back = p.querySelector('[data-back]');
+    if (back) back.onclick = () => habitsSheet(list);
+
+    p.querySelector('form').onsubmit = (e) => {
+      e.preventDefault();
+      const text = p.querySelector('[name=text]').value.trim();
+      if (!text) return;
+      if (freqVal === 'weekly' && !days.size) return toast('Pick at least one day');
+      const tm = p.querySelector('[name=time]').value || null;
+      const dom = Math.min(31, Math.max(1, Number(p.querySelector('[name=dayOfMonth]').value) || 1));
+      const dow = [...days].sort((a, b) => a - b);
+      if (r) {
+        const patch = {};
+        if (text !== r.text) patch.text = r.text = text;
+        if (r.freq === 'weekly' && JSON.stringify(dow) !== JSON.stringify(r.daysOfWeek)) patch.daysOfWeek = r.daysOfWeek = dow;
+        if (r.freq === 'monthly' && dom !== r.dayOfMonth) patch.dayOfMonth = r.dayOfMonth = dom;
+        if (tm !== r.time) patch.time = r.time = tm;
+        if (Object.keys(patch).length) send('PATCH', `/recurring/${r.id}`, patch);
+      } else {
+        const fresh = {
+          id: uid(), listId: list.id, text, createdAt: Date.now(), active: true, freq: freqVal,
+          daysOfWeek: freqVal === 'weekly' ? dow : null, dayOfMonth: freqVal === 'monthly' ? dom : null, time: tm,
+          lastGeneratedDay: null, lastGeneratedMonth: null,
+        };
+        state.recurring.push(fresh);
+        send('POST', '/recurring', { id: fresh.id, listId: list.id, text, freq: freqVal, daysOfWeek: fresh.daysOfWeek, dayOfMonth: fresh.dayOfMonth, time: tm });
+      }
+      habitsSheet(list);
+    };
+    const del = p.querySelector('[data-del]');
+    if (del) {
+      del.onclick = () => {
+        if (!del.classList.contains('sure')) {
+          del.classList.add('sure');
+          del.textContent = 'Tap again to delete';
+          return;
+        }
+        state.recurring = state.recurring.filter((x) => x.id !== r.id);
+        send('DELETE', `/recurring/${r.id}`);
+        habitsSheet(list);
+      };
+    }
   }
 
   // ---------------------------------------------------------------- actions
@@ -447,6 +575,7 @@
     }
     if (t.closest('[data-newlist]')) return listSheet(null);
     if (t.closest('[data-editlist]')) return listSheet(curList());
+    if (t.closest('[data-habits]')) return curList() && habitsSheet(curList());
     if (t.closest('[data-install]') && installEvent) {
       installEvent.prompt();
       installEvent = null;

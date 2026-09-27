@@ -161,7 +161,33 @@ h1, h2, h3, p { margin: 0; }
 .due { display: inline-block; margin-top: 3px; font-size: 0.78rem; color: var(--muted); }
 .due.soon { color: var(--warn); }
 .due.late { color: var(--danger); font-weight: 600; }
+.recur { margin-right: 4px; font-size: 0.85em; }
 .sep { margin: 16px 2px 8px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+/* ---- habits ---- */
+.habitlist { display: grid; gap: 8px; margin-top: 4px; }
+.habitrow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 16px;
+  background: var(--card2);
+}
+.habitrow.paused { opacity: 0.65; }
+.hbody { flex: 1; min-width: 0; text-align: left; padding: 8px 0; }
+.htext { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.hsched { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--muted); }
+
+.freqswitch { display: flex; gap: 8px; margin-bottom: 14px; }
+.freqswitch button {
+  flex: 1; min-height: 44px; border-radius: 14px;
+  background: var(--bg); border: 1px solid var(--line); font-weight: 700;
+}
+.freqswitch button.on { background: var(--grad); color: #fff; border-color: transparent; }
+.freqswitch button:disabled { opacity: 0.6; }
+
+.weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 16px; }
+.weekdays button { aspect-ratio: 1; border-radius: 12px; font-size: 0.8rem; font-weight: 700; background: var(--bg); border: 2px solid transparent; }
+.weekdays button.on { border-color: var(--accent); background: var(--card2); color: var(--accent); }
 
 .empty { text-align: center; padding: 36px 16px; color: var(--muted); }
 .empty .em { font-size: 3rem; margin-bottom: 8px; display: block; }

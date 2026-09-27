@@ -71,9 +71,48 @@ async function main() {
   assert.equal((await call('GET', 'api')).s, 400); ok('a reserved user name is rejected');
   assert.equal((await call('GET', 'TESTER')).j.user, u); ok('user names are case-insensitive');
 
+  // recurring habits
+  r = await call('GET', u);
+  assert.deepEqual(r.j.recurring, []); ok('a new user has no recurring habits');
+  const homeList = r.j.lists[0].id;
+
+  r = await call('POST', `${u}/recurring`, { listId: homeList, text: 'Pull ups', freq: 'weekly', daysOfWeek: [1, 3, 6] });
+  assert.equal(r.s, 200);
+  const habitId = r.j.recurring[0].id;
+  assert.deepEqual(r.j.recurring[0].daysOfWeek, [1, 3, 6]); ok('create a weekly recurring habit');
+
+  r = await call('POST', `${u}/recurring`, { listId: homeList, text: 'Pay bills', freq: 'monthly', dayOfMonth: 7 });
+  assert.equal(r.j.recurring.at(-1).dayOfMonth, 7); ok('create a monthly recurring habit');
+
+  r = await call('POST', `${u}/recurring`, { listId: homeList, text: 'x', freq: 'daily' });
+  assert.equal(r.s, 400); ok('an unknown frequency is rejected');
+  r = await call('POST', `${u}/recurring`, { listId: homeList, text: 'x', freq: 'weekly' });
+  assert.equal(r.s, 400); ok('a weekly habit without daysOfWeek is rejected');
+  r = await call('POST', `${u}/recurring`, { listId: homeList, text: 'x', freq: 'monthly', dayOfMonth: 40 });
+  assert.equal(r.s, 400); ok('an out-of-range dayOfMonth is rejected');
+  r = await call('POST', `${u}/recurring`, { listId: 'nope', text: 'x', freq: 'weekly', daysOfWeek: [1] });
+  assert.equal(r.s, 404); ok('a recurring habit on an unknown list gives 404');
+
+  r = await call('PATCH', `${u}/recurring/${habitId}`, { active: false, daysOfWeek: [2, 4] });
+  const habit = r.j.recurring.find((x) => x.id === habitId);
+  assert(habit.active === false && habit.daysOfWeek.length === 2); ok('edit a recurring habit');
+
+  r = await call('DELETE', `${u}/recurring/${habitId}`);
+  assert(!r.j.recurring.some((x) => x.id === habitId)); ok('delete a recurring habit');
+
+  r = await call('POST', `${u}/lists`, { name: 'Bills' });
+  const billsList = r.j.lists.at(-1).id;
+  r = await call('POST', `${u}/recurring`, { listId: billsList, text: 'Rent', freq: 'monthly', dayOfMonth: 1 });
+  const billsHabit = r.j.recurring.at(-1).id;
+  r = await call('DELETE', `${u}/lists/${billsList}`);
+  assert(!r.j.recurring.some((x) => x.id === billsHabit)); ok('deleting a list also removes recurring habits that point to it');
+
   const hist = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'users', `${u}.history.json`), 'utf8'));
   const actions = new Set(hist.entries.map((e) => e.action));
-  for (const a of ['user.create', 'list.add', 'list.update', 'list.delete', 'item.add', 'item.update', 'item.complete', 'item.reopen', 'item.delete']) {
+  for (const a of [
+    'user.create', 'list.add', 'list.update', 'list.delete', 'item.add', 'item.update', 'item.complete', 'item.reopen', 'item.delete',
+    'recurring.add', 'recurring.update', 'recurring.delete',
+  ]) {
     assert(actions.has(a), `history is missing ${a}`);
   }
   ok('every kind of change is written to the history log');
