@@ -149,15 +149,20 @@
   }
 
   function tasksHtml() {
-    const chips = state.lists.map((l) => {
-      const open = l.items.filter((i) => !i.done).length;
-      return `<button class="chip${l.id === curList().id ? ' on' : ''}" data-list="${l.id}"><span aria-hidden="true">${esc(l.emoji)}</span>${esc(l.name)}<span class="n">${open}</span></button>`;
-    });
-    const chipRow = `<div class="chips" id="chips">${state.lists.length ? chips.join('') : ''}<button class="chip new" data-newlist>＋ New list</button></div>`;
-
     const list = curList();
+    let picker;
+    if (state.lists.length) {
+      const options = state.lists.map((l) => {
+        const open = l.items.filter((i) => !i.done).length;
+        return `<option value="${l.id}"${list && l.id === list.id ? ' selected' : ''}>${esc(l.emoji)} ${esc(l.name)} · ${open} open</option>`;
+      }).join('');
+      picker = `<div class="listpicker"><select id="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select></div>`;
+    } else {
+      picker = `<button class="chip new" data-newlist>＋ New list</button>`;
+    }
+
     if (!list) {
-      return `${chipRow}<div class="empty"><span class="em">🗂️</span><b>No lists yet</b>Create one to start adding tasks.</div>`;
+      return `${picker}<div class="empty"><span class="em">🗂️</span><b>No lists yet</b>Create one to start adding tasks.</div>`;
     }
 
     const open = list.items.filter((i) => !i.done).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) || a.createdAt - b.createdAt);
@@ -174,7 +179,7 @@
       if (done.length) body += `<div class="sep">Completed · ${done.length}</div><ul class="items">${done.map(itemHtml).join('')}</ul>`;
     }
 
-    return `${chipRow}
+    return `${picker}
       <div class="listhead"><span class="big" aria-hidden="true">${esc(list.emoji)}</span><h2>${esc(list.name)}</h2>
         <button class="iconbtn" data-editlist aria-label="Edit list">✏️</button></div>
       <div class="sub">${summary}</div>
@@ -202,7 +207,8 @@
     }).join('');
 
     const install = installHtml();
-    return `<section class="hero" style="--c1:${t.c1};--c2:${t.c2}">
+    return `<button class="backbtn" data-tab="tasks"><span aria-hidden="true">←</span>Tasks</button>
+      <section class="hero" style="--c1:${t.c1};--c2:${t.c2}">
         <div class="ringwrap">
           <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
             <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${t.c1}"/><stop offset="1" stop-color="${t.c2}"/></linearGradient></defs>
@@ -244,20 +250,14 @@
     const onTasks = tab === 'tasks';
     $('#app').classList.toggle('no-add', !onTasks);
     $('#addbar').hidden = !onTasks;
-    document.querySelectorAll('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
 
     const t = tierOf(state.stats.score);
     $('#chip').innerHTML = `<span class="em">${t.emoji}</span>${esc(state.stats.score == null ? 'New' : t.label)}`;
 
     const view = $('#view');
-    const chipScroll = $('#chips')?.scrollLeft || 0;
     view.innerHTML = onTasks ? tasksHtml() : insightsHtml();
 
-    if (onTasks) {
-      const chips = $('#chips');
-      chips.scrollLeft = chipScroll;
-      if (scrollToChip) { $('.chip.on')?.scrollIntoView({ inline: 'center', block: 'nearest' }); scrollToChip = false; }
-    } else {
+    if (!onTasks) {
       // start the ring and bars empty, force a layout so that state is really applied, then set the
       // target: the CSS transition animates between the two. (requestAnimationFrame is not used
       // because browsers pause it in background tabs, which would leave the ring empty.)
@@ -267,7 +267,6 @@
       document.querySelectorAll('.track i').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
     }
   }
-  let scrollToChip = true;
   let renderTimer;
   const renderSoon = (ms = 420) => { clearTimeout(renderTimer); renderTimer = setTimeout(render, ms); }; // lets the tick animation finish
 
@@ -332,7 +331,6 @@
         const fresh = { id: uid(), name, emoji: icon, createdAt: Date.now(), items: [] };
         state.lists.push(fresh);
         selectList(fresh.id);
-        scrollToChip = true;
         send('POST', '/lists', { id: fresh.id, name, emoji: icon });
       }
       closeSheet();
@@ -349,7 +347,6 @@
         state.lists = state.lists.filter((l) => l.id !== list.id);
         for (const [id, rec] of pendingDeletes) if (rec.listId === list.id) { clearTimeout(rec.timer); pendingDeletes.delete(id); }
         if (listId === list.id) selectList(state.lists[0]?.id ?? null);
-        scrollToChip = true;
         send('DELETE', `/lists/${list.id}`);
         closeSheet();
         render();
@@ -435,7 +432,7 @@
   document.addEventListener('click', (e) => {
     const t = e.target;
     const tabBtn = t.closest('[data-tab]');
-    if (tabBtn) { tab = tabBtn.dataset.tab; scrollToChip = true; render(); scrollTo(0, 0); return; }
+    if (tabBtn) { tab = tabBtn.dataset.tab; render(); scrollTo(0, 0); return; }
     if (!state) return;
 
     const toggle = t.closest('[data-toggle]');
@@ -448,14 +445,20 @@
       if (item) itemSheet(list, item);
       return;
     }
-    const chip = t.closest('[data-list]');
-    if (chip) { selectList(chip.dataset.list); scrollToChip = true; render(); return; }
     if (t.closest('[data-newlist]')) return listSheet(null);
     if (t.closest('[data-editlist]')) return listSheet(curList());
     if (t.closest('[data-install]') && installEvent) {
       installEvent.prompt();
       installEvent = null;
     }
+  });
+
+  document.addEventListener('change', (e) => {
+    const sel = e.target.closest('#listselect');
+    if (!sel || !state) return;
+    if (sel.value === '__new') { sel.value = curList()?.id ?? ''; listSheet(null); return; }
+    selectList(sel.value);
+    render();
   });
 
   // add bar

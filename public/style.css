@@ -12,7 +12,6 @@
   --warn: #e37400;
   --ok: #188038;
   --shadow: 0 6px 24px rgba(30, 40, 90, 0.10);
-  --tabbar: 58px;
   --addbar: 64px;
 }
 @media (prefers-color-scheme: dark) {
@@ -58,9 +57,9 @@ h1, h2, h3, p { margin: 0; }
 #app {
   max-width: 640px;
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 14px) 16px calc(var(--tabbar) + var(--addbar) + env(safe-area-inset-bottom) + 24px);
+  padding: calc(env(safe-area-inset-top) + 14px) 16px calc(var(--addbar) + env(safe-area-inset-bottom) + 24px);
 }
-#app.no-add { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 24px); }
+#app.no-add { padding-bottom: calc(env(safe-area-inset-bottom) + 24px); }
 
 /* ---- header ---- */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -77,15 +76,27 @@ h1, h2, h3, p { margin: 0; }
 }
 .rating-chip .em { font-size: 1.15rem; }
 
-/* ---- list chips ---- */
-.chips {
-  display: flex; gap: 8px;
-  overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
-  margin: 0 -16px 14px; padding: 4px 16px 8px;
+/* ---- list picker ---- */
+.listpicker { position: relative; margin-bottom: 14px; }
+.listpicker::after {
+  content: '▾';
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; color: var(--muted); font-size: 0.9rem;
 }
-.chips::-webkit-scrollbar { display: none; }
+.listpicker select {
+  width: 100%; min-height: 52px; padding: 0 40px 0 16px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  font-weight: 700; font-size: 1rem;
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  outline: none;
+}
+.listpicker select:focus-visible { outline: 3px solid rgba(26, 115, 232, 0.55); outline-offset: 2px; }
+
 .chip {
-  flex: none; scroll-snap-align: start;
+  flex: none;
   display: flex; align-items: center; gap: 7px;
   min-height: 44px; padding: 0 14px;
   border-radius: 999px;
@@ -93,16 +104,9 @@ h1, h2, h3, p { margin: 0; }
   border: 1px solid var(--line);
   font-weight: 600; font-size: 0.95rem; white-space: nowrap;
   transition: transform 0.12s, background 0.2s, color 0.2s;
+  margin-bottom: 14px;
 }
 .chip:active { transform: scale(0.96); }
-.chip .n {
-  min-width: 22px; height: 22px; padding: 0 6px;
-  display: grid; place-items: center;
-  border-radius: 11px; background: var(--card2);
-  font-size: 0.75rem; color: var(--muted);
-}
-.chip.on { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 6px 16px rgba(80, 90, 230, 0.35); }
-.chip.on .n { background: rgba(255, 255, 255, 0.25); color: #fff; }
 .chip.new { border-style: dashed; color: var(--accent); }
 
 /* ---- current list ---- */
@@ -166,7 +170,7 @@ h1, h2, h3, p { margin: 0; }
 /* ---- add bar + tab bar ---- */
 .addbar {
   position: fixed; left: 0; right: 0;
-  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom));
+  bottom: env(safe-area-inset-bottom);
   max-width: 640px; margin: 0 auto;
   padding: 8px 12px 10px;
   background: linear-gradient(to top, var(--bg) 70%, transparent);
@@ -202,24 +206,16 @@ h1, h2, h3, p { margin: 0; }
 }
 .duepill button { width: 28px; height: 28px; border-radius: 14px; color: var(--muted); }
 
-.tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-  max-width: 640px; margin: 0 auto;
-  height: calc(var(--tabbar) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  display: grid; grid-template-columns: 1fr 1fr;
-  background: var(--card);
-  border-top: 1px solid var(--line);
-}
-.tabbar button {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  font-size: 0.72rem; font-weight: 600; color: var(--muted);
-}
-.tabbar button span { font-size: 1.3rem; filter: grayscale(1); opacity: 0.7; transition: filter 0.2s, opacity 0.2s; }
-.tabbar button.on { color: var(--accent); }
-.tabbar button.on span { filter: none; opacity: 1; }
-
 /* ---- insights ---- */
+.backbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 14px; margin-bottom: 14px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-weight: 600; font-size: 0.9rem; color: var(--text);
+}
+.backbtn:active { transform: scale(0.96); }
 .hero {
   position: relative; text-align: center;
   padding: 22px 16px 20px;
@@ -306,7 +302,7 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 3px so
 
 .toast {
   position: fixed; left: 50%; z-index: 30;
-  bottom: calc(var(--tabbar) + var(--addbar) + env(safe-area-inset-bottom) + 14px);
+  bottom: calc(var(--addbar) + env(safe-area-inset-bottom) + 14px);
   transform: translateX(-50%);
   display: flex; align-items: center; gap: 14px;
   max-width: calc(100% - 32px); padding: 12px 16px;
@@ -331,7 +327,7 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 3px so
 .welcome-card .fine { min-height: 1.2em; margin: 0; color: var(--danger); }
 
 @media (min-width: 700px) {
-  .tabbar, .addbar { border-radius: 20px 20px 0 0; }
+  .addbar { border-radius: 20px 20px 0 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
