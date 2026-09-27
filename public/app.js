@@ -174,25 +174,22 @@
     const open = list.items.filter((i) => !i.done).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) || a.createdAt - b.createdAt);
     const done = list.items.filter((i) => i.done).sort((a, b) => b.completedAt - a.completedAt);
     const pct = list.items.length ? Math.round((done.length / list.items.length) * 100) : 0;
-    const summary = !list.items.length ? 'Nothing here yet' : open.length ? `${open.length} to do · ${done.length} done` : 'All done 🎉';
 
     let body = '';
     if (!list.items.length) {
       body = `<div class="empty"><span class="em">${esc(list.emoji)}</span><b>${esc(list.name)} is empty</b>Add your first task below.</div>`;
     } else {
       if (open.length) body += `<ul class="items">${open.map(itemHtml).join('')}</ul>`;
-      else body += `<div class="empty"><span class="em">🎉</span><b>Everything is done</b>Nice work. Add another task below.</div>`;
       if (done.length) body += `<div class="sep">Completed · ${done.length}</div><ul class="items">${done.map(itemHtml).join('')}</ul>`;
     }
 
     return `<div class="listhead">
+        <button type="button" class="listicon" data-listicon aria-label="Edit list (long press)">${esc(list.emoji)}</button>
         <div class="listname">
           <select id="listselect" class="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select>
-          <span class="big" aria-hidden="true">${esc(list.emoji)}</span><h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
+          <h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
         </div>
-        <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button>
-        <button class="iconbtn" data-editlist aria-label="Edit list">✏️</button></div>
-      <div class="sub">${summary}</div>
+        <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button></div>
       <div class="bar"><i style="width:${pct}%"></i></div>${body}`;
   }
 
@@ -570,13 +567,29 @@
       return;
     }
     if (t.closest('[data-newlist]')) return listSheet(null);
-    if (t.closest('[data-editlist]')) return listSheet(curList());
     if (t.closest('[data-habits]')) return curList() && habitsSheet(curList());
     if (t.closest('[data-install]') && installEvent) {
       installEvent.prompt();
       installEvent = null;
     }
   });
+
+  // long-press the list icon to edit the list (rename/change icon/delete)
+  let pressTimer = null;
+  const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('[data-listicon]')) return;
+    cancelPress();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      navigator.vibrate?.(15);
+      if (curList()) listSheet(curList());
+    }, 500);
+  });
+  document.addEventListener('pointerup', cancelPress);
+  document.addEventListener('pointerleave', cancelPress, true);
+  document.addEventListener('pointercancel', cancelPress);
+  document.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-listicon]')) e.preventDefault(); });
 
   document.addEventListener('change', (e) => {
     const sel = e.target.closest('#listselect');
