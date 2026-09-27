@@ -63,8 +63,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---- header ---- */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.hello-sub { font-size: 0.8rem; color: var(--muted); }
-.hello h1 { font-size: 1.5rem; line-height: 1.15; overflow-wrap: anywhere; }
+.hello h1 { font-size: 1.2rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
 .rating-chip {
   flex: none;
   display: flex; align-items: center; gap: 6px;
@@ -92,15 +91,18 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---- current list ---- */
 .listhead { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.listmain { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .listicon {
-  flex: none; font-size: 2rem; line-height: 1;
+  flex: none; width: 36px; height: 36px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; line-height: 1; border-radius: 10px;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   touch-action: manipulation;
 }
-.listicon:active { transform: scale(0.92); }
+.listicon:active { background: var(--card2); transform: scale(0.92); }
 .listname {
   position: relative; flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   user-select: none; -webkit-user-select: none;
 }
 .listname h2 { flex: 1; min-width: 0; font-size: 1.3rem; overflow-wrap: anywhere; }
@@ -125,12 +127,12 @@ h1, h2, h3, p { margin: 0; }
 .bar { height: 8px; border-radius: 4px; background: var(--card2); overflow: hidden; margin-bottom: 16px; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--grad); border-radius: 4px; transition: width 0.5s cubic-bezier(.2, .8, .2, 1); }
 
-.items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .item {
-  display: flex; align-items: center; gap: 4px;
-  min-height: 60px;
-  padding: 4px 8px 4px 4px;
-  border-radius: 16px;
+  display: flex; align-items: center; gap: 2px;
+  min-height: 48px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 14px;
   background: var(--card);
   border: 1px solid var(--line);
   transition: opacity 0.3s, background 0.3s;
@@ -138,20 +140,20 @@ h1, h2, h3, p { margin: 0; }
 .item.new { animation: pop 0.22s ease-out; }
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
 .check {
-  flex: none; width: 52px; height: 52px;
+  flex: none; width: 44px; height: 44px;
   display: grid; place-items: center;
 }
 .check i {
-  width: 28px; height: 28px; border-radius: 9px;
+  width: 24px; height: 24px; border-radius: 8px;
   border: 2px solid var(--muted);
   display: grid; place-items: center;
   transition: background 0.2s, border-color 0.2s, transform 0.2s;
 }
-.check svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 0.25s 0.05s; }
+.check svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 0.25s 0.05s; }
 .check:active i { transform: scale(0.88); }
 .item.done .check i { background: var(--grad); border-color: transparent; }
 .item.done .check svg { stroke-dashoffset: 0; }
-.body { flex: 1; min-width: 0; text-align: left; padding: 8px 4px; }
+.body { flex: 1; min-width: 0; text-align: left; padding: 5px 4px; }
 .txt { display: block; overflow-wrap: anywhere; line-height: 1.3; transition: color 0.2s; }
 .item.done .txt { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
 .item.done { opacity: 0.75; }

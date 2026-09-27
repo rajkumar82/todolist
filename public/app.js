@@ -166,10 +166,8 @@
     if (!list) {
       return `<button class="chip new" data-newlist>＋ New list</button><div class="empty"><span class="em">🗂️</span><b>No lists yet</b>Create one to start adding tasks.</div>`;
     }
-    const options = state.lists.map((l) => {
-      const open = l.items.filter((i) => !i.done).length;
-      return `<option value="${l.id}"${l.id === list.id ? ' selected' : ''}>${esc(l.emoji)} ${esc(l.name)} · ${open} open</option>`;
-    }).join('');
+    const options = state.lists.map((l) =>
+      `<option value="${l.id}"${l.id === list.id ? ' selected' : ''}>${esc(l.emoji)} ${esc(l.name)}</option>`).join('');
 
     const open = list.items.filter((i) => !i.done).sort((a, b) => (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) || a.createdAt - b.createdAt);
     const done = list.items.filter((i) => i.done).sort((a, b) => b.completedAt - a.completedAt);
@@ -184,10 +182,12 @@
     }
 
     return `<div class="listhead">
-        <button type="button" class="listicon" data-listicon aria-label="Edit list (long press)">${esc(list.emoji)}</button>
-        <div class="listname">
-          <select id="listselect" class="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select>
-          <h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
+        <div class="listmain">
+          <button type="button" class="listicon" data-listicon aria-label="Edit list (long press)">${esc(list.emoji)}</button>
+          <div class="listname">
+            <select id="listselect" class="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select>
+            <h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
+          </div>
         </div>
         <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button></div>
       <div class="bar"><i style="width:${pct}%"></i></div>${body}`;
@@ -306,7 +306,10 @@
   sheet.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeSheet(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
 
-  const EMOJIS = ['🏠', '💼', '👨‍👩‍👧', '🎉', '🛒', '💪', '📚', '✈️', '💡', '💰', '🎯', '🧹', '🍳', '🐶', '🎮', '❤️'];
+  const EMOJIS = [
+    '🏠', '💼', '👨‍👩‍👧', '🎉', '🛒', '💪', '📚', '✈️', '💡', '💰', '🎯', '🧹', '🍳', '🐶', '🎮', '❤️',
+    '🎓', '🧘', '🎵', '🎨', '📷', '🚗', '🌱', '🩺', '📅', '🎁', '☕', '🔧', '🧳', '👶', '🐾', '🌟',
+  ];
 
   function listSheet(list) {
     let icon = list ? list.emoji : EMOJIS[0];
