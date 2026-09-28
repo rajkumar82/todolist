@@ -2,10 +2,10 @@
 // Registers the service worker and adds a small ⋮ menu (top-right) with an "Install app" entry:
 //  - Android/desktop Chrome/Edge: opens the browser's install prompt.
 //  - iOS Safari: shows the "Share → Add to Home Screen" steps (iOS has no install API).
-//  - Already installed: the entry says so, unless there are no other menu items, in which case the
-//    whole button hides itself (nothing left to do from the menu). Menu styling uses the page's
-//    --card/--text/--line vars when defined.
-// Pages can add their own menu entries by setting window.pwaMenuItems = [{ label, onClick }] before this runs.
+//  - Already installed: no install entry is shown at all (nothing to do from the menu).
+// Pages can add their own menu entries by setting window.pwaMenuItems before this runs, as a list of
+// either { label, onClick } (a clickable action) or { html } (non-interactive rich content, e.g. a
+// profile summary — rendered first, above the install/action entries).
 // The page's own header can reserve space for the button with a rule like
 // `html.pwa-btn-visible .my-header { padding-right: 46px; }` — that class is only present while the
 // button is actually shown.
@@ -28,6 +28,8 @@
   .pwa-item{display:block;width:100%;padding:12px 14px;border:0;border-radius:10px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
   .pwa-item:hover,.pwa-item:focus-visible{background:rgba(127,127,127,.18)}
   .pwa-item[disabled]{opacity:.6;cursor:default}
+  .pwa-item.pwa-custom{cursor:default;border-bottom:1px solid var(--line,#2a3050);border-radius:0;margin-bottom:4px;padding-bottom:10px}
+  .pwa-item.pwa-custom:hover{background:none}
   .pwa-note{padding:8px 14px 10px;font-size:.85rem;line-height:1.45;opacity:.85}`;
 
   const style = document.createElement('style'); style.textContent = css; document.head.append(style);
@@ -54,6 +56,8 @@
 
   function render() {
     const extra = Array.isArray(window.pwaMenuItems) ? window.pwaMenuItems : [];
+    const custom = extra.filter((x) => x.html);
+    const actions = extra.filter((x) => !x.html);
     const hide = standalone && !extra.length;
     btn.hidden = hide;
     // lets the page reserve header space for the button only while it's actually shown
@@ -61,21 +65,30 @@
     if (hide) { close(); return; }
 
     menu.replaceChildren();
-    if (standalone) {
-      menu.append(item('✓ Installed as an app', null, true));
-    } else if (deferred) {
-      menu.append(item('📲 Install app', async () => {
-        close(); deferred.prompt(); await deferred.userChoice.catch(() => {}); deferred = null; render();
-      }));
-    } else if (ios) {
-      menu.append(item('📲 Install app', () => {
-        menu.replaceChildren(item('📲 Install app', null, true), note('In Safari, tap the Share button, then “Add to Home Screen”.'));
-      }));
-    } else {
-      menu.append(item('📲 Install app', null, true),
-        note('To install, open this page in Chrome (Android) or Safari (iPhone), then use this menu again.'));
+    for (const x of custom) {
+      const div = document.createElement('div'); div.className = 'pwa-item pwa-custom'; div.setAttribute('role', 'presentation');
+      div.innerHTML = x.html;
+      menu.append(div);
     }
-    for (const x of extra) menu.append(item(x.label, () => { close(); x.onClick(); }));
+
+    if (!standalone) {
+      if (deferred) {
+        menu.append(item('📲 Install app', async () => {
+          close(); deferred.prompt(); await deferred.userChoice.catch(() => {}); deferred = null; render();
+        }));
+      } else if (ios) {
+        const installBtn = item('📲 Install app', () => {
+          installBtn.disabled = true;
+          installBtn.after(note('In Safari, tap the Share button, then “Add to Home Screen”.'));
+        });
+        menu.append(installBtn);
+      } else {
+        menu.append(item('📲 Install app', null, true),
+          note('To install, open this page in Chrome (Android) or Safari (iPhone), then use this menu again.'));
+      }
+    }
+
+    for (const x of actions) menu.append(item(x.label, () => { close(); x.onClick(); }));
   }
   window.pwaRenderMenu = render;
   render();
