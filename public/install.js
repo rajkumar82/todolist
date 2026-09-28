@@ -6,6 +6,9 @@
 //    whole button hides itself (nothing left to do from the menu). Menu styling uses the page's
 //    --card/--text/--line vars when defined.
 // Pages can add their own menu entries by setting window.pwaMenuItems = [{ label, onClick }] before this runs.
+// The page's own header can reserve space for the button with a rule like
+// `html.pwa-btn-visible .my-header { padding-right: 46px; }` — that class is only present while the
+// button is actually shown.
 (() => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
@@ -51,8 +54,11 @@
 
   function render() {
     const extra = Array.isArray(window.pwaMenuItems) ? window.pwaMenuItems : [];
-    if (standalone && !extra.length) { btn.hidden = true; close(); return; }
-    btn.hidden = false;
+    const hide = standalone && !extra.length;
+    btn.hidden = hide;
+    // lets the page reserve header space for the button only while it's actually shown
+    document.documentElement.classList.toggle('pwa-btn-visible', !hide);
+    if (hide) { close(); return; }
 
     menu.replaceChildren();
     if (standalone) {
