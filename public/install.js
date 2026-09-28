@@ -2,7 +2,9 @@
 // Registers the service worker and adds a small ⋮ menu (top-right) with an "Install app" entry:
 //  - Android/desktop Chrome/Edge: opens the browser's install prompt.
 //  - iOS Safari: shows the "Share → Add to Home Screen" steps (iOS has no install API).
-//  - Already installed: the entry says so. Menu styling uses the page's --card/--text/--line vars when defined.
+//  - Already installed: the entry says so, unless there are no other menu items, in which case the
+//    whole button hides itself (nothing left to do from the menu). Menu styling uses the page's
+//    --card/--text/--line vars when defined.
 // Pages can add their own menu entries by setting window.pwaMenuItems = [{ label, onClick }] before this runs.
 (() => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -48,6 +50,10 @@
   }
 
   function render() {
+    const extra = Array.isArray(window.pwaMenuItems) ? window.pwaMenuItems : [];
+    if (standalone && !extra.length) { btn.hidden = true; close(); return; }
+    btn.hidden = false;
+
     menu.replaceChildren();
     if (standalone) {
       menu.append(item('✓ Installed as an app', null, true));
@@ -63,9 +69,7 @@
       menu.append(item('📲 Install app', null, true),
         note('To install, open this page in Chrome (Android) or Safari (iPhone), then use this menu again.'));
     }
-    if (Array.isArray(window.pwaMenuItems)) {
-      for (const x of window.pwaMenuItems) menu.append(item(x.label, () => { close(); x.onClick(); }));
-    }
+    for (const x of extra) menu.append(item(x.label, () => { close(); x.onClick(); }));
   }
   window.pwaRenderMenu = render;
   render();
