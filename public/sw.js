@@ -2,8 +2,8 @@
 //   pages + assets: network first, cached copy when offline
 //   api reads:      network first, last answer when offline (so lists stay readable)
 //   api writes:     never touched, they simply fail offline and the app shows a message
-const CACHE = 'todo-v6';
-const SHELL = ['/', '/style.css', '/app.js', '/icon-192.png', '/favicon.png'];
+const CACHE = 'todo-v7';
+const SHELL = ['/', '/style.css', '/app.js', '/install.js', '/icon-192.png', '/favicon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

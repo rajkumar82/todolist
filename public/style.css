@@ -62,7 +62,7 @@ h1, h2, h3, p { margin: 0; }
 #app.no-add { padding-bottom: calc(env(safe-area-inset-bottom) + 24px); }
 
 /* ---- header ---- */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding-right: 46px; }
 .hello h1 { font-size: 1.2rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
 .rating-chip {
   flex: none;
