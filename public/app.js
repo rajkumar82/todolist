@@ -186,7 +186,7 @@
           <button type="button" class="listicon" data-listicon aria-label="Edit list (long press)">${esc(list.emoji)}</button>
           <div class="listname">
             <select id="listselect" class="listselect" aria-label="Choose list">${options}<option value="__new">＋ New list</option></select>
-            <h2>${esc(list.name)}</h2><span class="chev" aria-hidden="true">▾</span>
+            <h2>${esc(list.name)}</h2>
           </div>
         </div>
         <button class="iconbtn" data-habits aria-label="Manage habits">🔁</button></div>
