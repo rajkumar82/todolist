@@ -70,7 +70,8 @@ async function main() {
   // a name in the URL grants nothing: only /api/me (the signed-in account) reaches a space
   assert.equal((await fetch(`${BASE}/api/u/${u}`)).status, 401); ok('/api/u/<name> is not reachable without going through /api/me');
   assert.equal((await fetch(`${BASE}/api/u/other`)).status, 401); ok('another name is not reachable either');
-  assert.equal((await (await fetch(`${BASE}/api/auth/me`)).json()).user.name, u); ok('/api/auth/me reports the signed-in account');
+  const meJson = (await (await fetch(`${BASE}/api/auth/me`)).json()).user;
+  assert.equal(meJson.name, u); assert.equal(meJson.picture, ''); ok('/api/auth/me reports the signed-in account (and an empty photo when there is none)');
   assert.equal((await fetch(`${BASE}/api/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503); ok('google login is refused when not configured');
 
   // recurring habits

@@ -273,6 +273,8 @@ const load = (name, tz = 0) => mutate(name, null, tz);
 
 // ---- sessions ----
 
+// Only Google-hosted https avatars are accepted, so a session can never carry an arbitrary image URL.
+const safePicture = (url) => (/^https:\/\/[\w.-]+\.googleusercontent\.com\//.test(String(url || '')) && String(url).length < 400 ? String(url) : '');
 const b64 = (v) => Buffer.from(v).toString('base64url');
 const sign = (payload) => crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
 
@@ -351,7 +353,7 @@ api.param('user', (req, res, next, raw) => {
 
 api.get('/auth/me', (req, res) => {
   const a = accountOf(req);
-  res.json({ clientId: GOOGLE_CLIENT_ID || null, user: a ? { name: a.name, email: a.email } : null });
+  res.json({ clientId: GOOGLE_CLIENT_ID || null, user: a ? { name: a.name, email: a.email, picture: a.picture || '' } : null });
 });
 
 api.post('/auth/google', async (req, res, next) => {
@@ -365,10 +367,10 @@ api.post('/auth/google', async (req, res, next) => {
       .catch(() => { throw new HttpError(401, 'Google sign-in failed'); });
     const p = ticket.getPayload();
     if (!/^\d{1,24}$/.test(p.sub || '')) throw new HttpError(401, 'Google sign-in failed');
-    const account = { key: `g-${p.sub}`, name: String(p.name || p.email || 'Me').slice(0, 80), email: String(p.email || '') };
+    const account = { key: `g-${p.sub}`, name: String(p.name || p.email || 'Me').slice(0, 80), email: String(p.email || ''), picture: safePicture(p.picture) };
     if (p.email_verified) await claimLegacy(account.key, account.email);
     setSession(req, res, makeSession(account), SESSION_DAYS);
-    res.json({ user: { name: account.name, email: account.email } });
+    res.json({ user: { name: account.name, email: account.email, picture: account.picture } });
   } catch (err) {
     next(err);
   }

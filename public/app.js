@@ -69,7 +69,7 @@
 
   const user = me.email || me.name; // only used to keep per-account settings apart in localStorage
   window.pwaMenuItems = [
-    { html: `<div class="menu-who"><strong>${esc(me.name)}</strong><br>${esc(me.email)}</div>` },
+    { html: `<div class="menu-who"><span class="avatar"><span class="avatar-initial">${esc((me.name || me.email || '?').trim().charAt(0).toUpperCase())}</span>${me.picture ? `<img src="${esc(me.picture)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span><span class="menu-who-text"><strong>${esc(me.name)}</strong><br>${esc(me.email)}</span></div>` },
     { label: 'Sign out', onClick: signOut },
   ];
   if (window.pwaRenderMenu) window.pwaRenderMenu(); // install.js may have rendered before sign-in finished
