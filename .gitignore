@@ -1,2 +1,6 @@
 node_modules/
 data/
+
+# OAuth client secrets downloaded from Google Cloud (never commit)
+client_secret_*.json
+.env

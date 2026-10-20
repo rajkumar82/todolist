@@ -10,12 +10,20 @@ const PORT = process.env.PORT || 8080;
 const BUCKET = process.env.BUCKET; // if unset, data is stored in ./data
 const NAME_RE = /^[a-z0-9_-]{1,32}$/;
 const ID_RE = /^[a-z0-9]{6,24}$/;
-const RESERVED = new Set(['api', 'manifest', 'manifest-root']);
 const MAX_LISTS = 50;
 const MAX_ITEMS = 500; // per list; keeps a user's file small
 const MAX_RECURRING = 50; // per user
 const MIN_DATE = Date.UTC(2000, 0, 1);
 const MAX_DATE = Date.UTC(2100, 0, 1);
+
+// Sign-in: Google ID token -> signed session cookie. Each Google account ("sub") owns one space.
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const DEV_USER = !GOOGLE_CLIENT_ID && process.env.DEV_USER; // local testing only: everyone is this user
+const SESSION_SECRET = process.env.SESSION_SECRET || (GOOGLE_CLIENT_ID ? null : 'dev-secret');
+if (GOOGLE_CLIENT_ID && !SESSION_SECRET) throw new Error('SESSION_SECRET is required when GOOGLE_CLIENT_ID is set');
+const SESSION_DAYS = 30;
+// "oldname=email,...": the first time that verified email signs in, the old name-keyed space is copied in
+const LEGACY_CLAIMS = (process.env.LEGACY_CLAIMS || '').split(',').map((c) => c.trim().split('=')).filter(([n, e]) => n && e);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -263,12 +271,61 @@ function mutate(name, change, tz = 0) {
 
 const load = (name, tz = 0) => mutate(name, null, tz);
 
+// ---- sessions ----
+
+const b64 = (v) => Buffer.from(v).toString('base64url');
+const sign = (payload) => crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+
+function makeSession(account) {
+  const payload = b64(JSON.stringify({ ...account, exp: Date.now() + SESSION_DAYS * 86400000 }));
+  return `${payload}.${sign(payload)}`;
+}
+function readSession(req) {
+  const raw = /(?:^|;\s*)session=([^;]+)/.exec(req.get('cookie') || '')?.[1];
+  if (!raw) return null;
+  const [payload, mac] = raw.split('.');
+  if (!payload || !mac) return null;
+  const want = Buffer.from(sign(payload));
+  const got = Buffer.from(mac);
+  if (want.length !== got.length || !crypto.timingSafeEqual(want, got)) return null;
+  try {
+    const s = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return s.exp > Date.now() ? s : null;
+  } catch {
+    return null;
+  }
+}
+const setSession = (req, res, value, maxAgeDays) => {
+  const secure = req.get('x-forwarded-proto') === 'https' || req.secure ? '; Secure' : '';
+  res.append('Set-Cookie', `session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.round(maxAgeDays * 86400)}${secure}`);
+};
+const accountOf = (req) => (DEV_USER ? { key: DEV_USER, name: DEV_USER, email: '' } : readSession(req));
+
+// copy a pre-sign-in space (users/<name>.json) to the account that claims it, once
+async function claimLegacy(key, email) {
+  const claim = LEGACY_CLAIMS.find(([, e]) => e.toLowerCase() === email.toLowerCase());
+  if (!claim) return;
+  await withLock(key, async () => {
+    if (await store.read(userKey(key))) return;
+    const old = await store.read(userKey(claim[0]));
+    if (!old) return;
+    try {
+      await store.write(userKey(key), { ...old.data, user: key }, null);
+    } catch (err) {
+      if (!(err instanceof Conflict)) throw err;
+      return;
+    }
+    const hist = await store.read(historyKey(claim[0]));
+    if (hist) await store.write(historyKey(key), { ...hist.data, user: key }, null).catch(() => {});
+  });
+}
+
 // ---- api ----
 
 const app = express();
 app.disable('x-powered-by');
 app.use((req, res, next) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow'); // a user's name is their only "password"
+  res.set('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
 
@@ -286,10 +343,50 @@ api.use((req, res, next) => {
 });
 api.param('user', (req, res, next, raw) => {
   const name = String(raw).trim().toLowerCase();
-  if (!NAME_RE.test(name) || RESERVED.has(name)) {
-    return next(bad('Name must be 1-32 characters: letters, digits, - or _'));
-  }
+  // only reachable through /api/me, which sets authKey; a name in the URL grants nothing
+  if (!req.authKey || name !== req.authKey || !NAME_RE.test(name)) return next(new HttpError(401, 'Sign in required'));
   req.userName = name;
+  next();
+});
+
+api.get('/auth/me', (req, res) => {
+  const a = accountOf(req);
+  res.json({ clientId: GOOGLE_CLIENT_ID || null, user: a ? { name: a.name, email: a.email } : null });
+});
+
+api.post('/auth/google', async (req, res, next) => {
+  try {
+    if (!GOOGLE_CLIENT_ID) throw new HttpError(503, 'Google sign-in is not configured');
+    const idToken = (req.body || {}).credential;
+    if (typeof idToken !== 'string' || idToken.length > 4096) throw bad('Missing credential');
+    const { OAuth2Client } = require('google-auth-library');
+    const ticket = await new OAuth2Client(GOOGLE_CLIENT_ID)
+      .verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID })
+      .catch(() => { throw new HttpError(401, 'Google sign-in failed'); });
+    const p = ticket.getPayload();
+    if (!/^\d{1,24}$/.test(p.sub || '')) throw new HttpError(401, 'Google sign-in failed');
+    const account = { key: `g-${p.sub}`, name: String(p.name || p.email || 'Me').slice(0, 80), email: String(p.email || '') };
+    if (p.email_verified) await claimLegacy(account.key, account.email);
+    setSession(req, res, makeSession(account), SESSION_DAYS);
+    res.json({ user: { name: account.name, email: account.email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+api.post('/auth/logout', (req, res) => {
+  setSession(req, res, '', 0);
+  res.json({ ok: true });
+});
+
+// /api/me/... is /api/u/<signed-in account>/... . Not api.use('/me', ...) because Express would
+// put the prefix back after we rewrite the URL.
+api.use((req, res, next) => {
+  if (req.url !== '/me' && !req.url.startsWith('/me/') && !req.url.startsWith('/me?')) return next();
+  const a = accountOf(req);
+  if (!a) return next(new HttpError(401, 'Sign in required'));
+  req.authKey = a.key;
+  req.url = `/u/${a.key}${req.url.slice(3)}`;
   next();
 });
 
@@ -452,24 +549,22 @@ api.delete('/u/:user/recurring/:recurringId', route((req) =>
 app.use('/api', api);
 
 // ---- pages ----
-// Every user gets the same page at /<name>; the server only injects the right manifest so that
-// "Add to Home Screen" installs a shortcut that opens that user's space.
+// One page for everyone; the app asks /api/auth/me who is signed in.
 
 const PUBLIC = path.join(__dirname, 'public');
 const indexHtml = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
 
-const sendPage = (res, name) => {
-  const manifest = name ? `/manifest/${name}.webmanifest` : '/manifest-root.webmanifest';
+const sendPage = (res) => {
   res.set('Cache-Control', 'no-cache');
-  res.type('html').send(indexHtml.replace('<!--MANIFEST-->', `<link rel="manifest" href="${manifest}">`));
+  res.type('html').send(indexHtml.replace('<!--MANIFEST-->', '<link rel="manifest" href="/manifest.webmanifest">'));
 };
 
-const manifestFor = (name) => ({
-  id: name ? `/${name}` : '/',
-  name: name ? `Todo · ${name}` : 'Todo',
+const manifest = {
+  id: '/',
+  name: 'Todo',
   short_name: 'Todo',
   description: 'Todo lists with an efficiency rating',
-  start_url: name ? `/${name}` : '/',
+  start_url: '/',
   scope: '/',
   display: 'standalone',
   orientation: 'portrait',
@@ -480,30 +575,19 @@ const manifestFor = (name) => ({
     { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
     { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
   ],
-});
-const sendManifest = (res, name) => {
-  res.set('Cache-Control', 'no-cache');
-  res.type('application/manifest+json').send(JSON.stringify(manifestFor(name)));
 };
 
-app.get('/manifest-root.webmanifest', (req, res) => sendManifest(res, ''));
-app.get('/manifest/:user.webmanifest', (req, res, next) => {
-  const name = req.params.user.toLowerCase();
-  if (!NAME_RE.test(name)) return next();
-  sendManifest(res, name);
+app.get('/manifest.webmanifest', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.type('application/manifest+json').send(JSON.stringify(manifest));
 });
 
 app.get('/robots.txt', (req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
 app.use(express.static(PUBLIC, { index: false, maxAge: 0 })); // always revalidated, so updates show up
 
-app.get('/', (req, res) => sendPage(res, ''));
-app.get('/:user', (req, res, next) => {
-  const raw = req.params.user;
-  const name = raw.toLowerCase();
-  if (!NAME_RE.test(name) || RESERVED.has(name)) return next();
-  if (raw !== name) return res.redirect(301, `/${name}`);
-  sendPage(res, name);
-});
+app.get('/', (req, res) => sendPage(res));
+// old per-name links (/rajkumar) just open the app, which asks you to sign in
+app.get('/:user', (req, res, next) => (NAME_RE.test(req.params.user.toLowerCase()) ? res.redirect(302, '/') : next()));
 
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
@@ -518,5 +602,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Todo listening on :${PORT} (storage: ${BUCKET ? `gcs://${BUCKET}` : './data'})`);
+  console.log(`Todo listening on :${PORT} (storage: ${BUCKET ? `gcs://${BUCKET}` : './data'}, sign-in: ${GOOGLE_CLIENT_ID ? 'google' : DEV_USER ? `dev user ${DEV_USER}` : 'NOT CONFIGURED'})`);
 });

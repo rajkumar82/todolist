@@ -9,7 +9,7 @@ const PORT = 18000 + Math.floor(Math.random() * 1000);
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-test-'));
 const BASE = `http://localhost:${PORT}`;
 const call = async (method, p, body) => {
-  const r = await fetch(`${BASE}/api/u/${p}`, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const r = await fetch(`${BASE}/api/me${p.replace(/^tester/, '')}`, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
   return { s: r.status, j: await r.json() };
 };
 let n = 0;
@@ -67,9 +67,11 @@ async function main() {
   r = await call('DELETE', `${u}/lists/${L}`);
   assert(!r.j.lists.some((l) => l.id === L)); ok('delete a list');
 
-  assert.equal((await call('GET', 'Bad.Name')).s, 400); ok('an invalid user name is rejected');
-  assert.equal((await call('GET', 'api')).s, 400); ok('a reserved user name is rejected');
-  assert.equal((await call('GET', 'TESTER')).j.user, u); ok('user names are case-insensitive');
+  // a name in the URL grants nothing: only /api/me (the signed-in account) reaches a space
+  assert.equal((await fetch(`${BASE}/api/u/${u}`)).status, 401); ok('/api/u/<name> is not reachable without going through /api/me');
+  assert.equal((await fetch(`${BASE}/api/u/other`)).status, 401); ok('another name is not reachable either');
+  assert.equal((await (await fetch(`${BASE}/api/auth/me`)).json()).user.name, u); ok('/api/auth/me reports the signed-in account');
+  assert.equal((await fetch(`${BASE}/api/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503); ok('google login is refused when not configured');
 
   // recurring habits
   r = await call('GET', u);
@@ -119,7 +121,7 @@ async function main() {
   console.log(`\n${n} API tests passed`);
 }
 
-const server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, DATA_DIR }, stdio: 'ignore' });
+const server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT, DATA_DIR, DEV_USER: 'tester' }, stdio: 'ignore' });
 (async () => {
   for (let i = 0; i < 50; i++) { // wait for the server to accept connections
     try { await fetch(BASE + '/robots.txt'); break; } catch { await new Promise((r) => setTimeout(r, 100)); }

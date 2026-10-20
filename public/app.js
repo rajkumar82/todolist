@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   'use strict';
 
   const $ = (sel) => document.querySelector(sel);
@@ -9,33 +9,73 @@
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode etc. */ } },
   };
 
-  const NAME_RE = /^[a-z0-9_-]{1,32}$/;
-  const user = decodeURIComponent(location.pathname).replace(/^\/+|\/+$/g, '').toLowerCase();
   const tz = new Date().getTimezoneOffset();
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-  // ---------------------------------------------------------------- welcome (no user in the URL)
-  if (!NAME_RE.test(user)) {
+  // ---------------------------------------------------------------- sign in
+  let me = null;
+  let clientId = null;
+  try {
+    const res = await fetch('/api/auth/me');
+    ({ user: me, clientId } = await res.json());
+  } catch {
+    // offline: fall through and try the cached lists below
+  }
+
+  async function signOut() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    try { await Promise.all((await caches.keys()).map((k) => caches.delete(k))); } catch { /* no cache api */ }
+    store.set('todo:me', '');
+    location.reload();
+  }
+
+  function showSignIn() {
     $('#welcome').hidden = false;
-    const input = $('#welcomename');
-    input.value = store.get('todo:last') || '';
-    $('#welcomeform').onsubmit = (e) => {
-      e.preventDefault();
-      const name = input.value.trim().toLowerCase();
-      if (!NAME_RE.test(name)) {
-        $('#welcomeerr').textContent = 'Use 1-32 letters, digits, - or _';
-        return;
-      }
-      location.href = `/${name}`;
+    const err = $('#welcomeerr');
+    if (!clientId) {
+      err.textContent = 'Google sign-in is not configured on this server.';
+      return;
+    }
+    window.onGoogleLoaded = () => {
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async ({ credential }) => {
+          err.textContent = '';
+          try {
+            const res = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Sign-in failed');
+            location.reload();
+          } catch (e) {
+            err.textContent = e.message;
+          }
+        },
+      });
+      google.accounts.id.renderButton($('#googlebtn'), { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with' });
     };
-    input.focus();
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = window.onGoogleLoaded;
+    script.onerror = () => { err.textContent = "Couldn't reach Google. Check your connection and try again."; };
+    document.head.append(script);
+  }
+
+  if (!me) {
+    // a different person may have used this device before, so only the last account's cache is trusted
+    showSignIn();
     return;
   }
 
-  store.set('todo:last', user);
-  document.title = `Todo · ${user}`;
-  $('#uname').textContent = user;
+  const user = me.email || me.name; // only used to keep per-account settings apart in localStorage
+  window.pwaMenuItems = [
+    { html: `<div class="menu-who"><strong>${esc(me.name)}</strong><br>${esc(me.email)}</div>` },
+    { label: 'Sign out', onClick: signOut },
+  ];
+  if (window.pwaRenderMenu) window.pwaRenderMenu(); // install.js may have rendered before sign-in finished
+  store.set('todo:me', user);
+  document.title = 'Todo';
+  $('#uname').textContent = me.name.split(' ')[0];
   $('#app').hidden = false;
 
   // ---------------------------------------------------------------- rating tiers
@@ -63,7 +103,7 @@
 
   // ---------------------------------------------------------------- server calls
   async function request(method, path, body, keepalive = false) {
-    const res = await fetch(`/api/u/${user}${path}`, {
+    const res = await fetch(`/api/me${path}`, {
       method,
       keepalive,
       headers: { 'Content-Type': 'application/json', 'X-TZ-Offset': String(tz) },

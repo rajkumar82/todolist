@@ -338,6 +338,9 @@ button:focus-visible, input:focus-visible, .chip:focus-visible { outline: 3px so
 .toast.err { background: #b3261e; }
 
 /* ---- welcome ---- */
+#googlebtn { display: flex; justify-content: center; min-height: 44px; }
+.menu-who { font-size: 0.85rem; line-height: 1.4; color: var(--muted); word-break: break-all; }
+.menu-who strong { color: var(--text, inherit); }
 #welcome { min-height: 100dvh; display: grid; place-items: center; padding: 20px; }
 .welcome-card {
   width: 100%; max-width: 380px; padding: 28px 22px; text-align: center;

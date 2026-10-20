@@ -1,0 +1,5 @@
+# Files that must never be uploaded when deploying from source
+#!include:.gitignore
+.git
+test/
+tools/
