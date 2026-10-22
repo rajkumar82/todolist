@@ -7,7 +7,7 @@
   --line: #dfe3ee;
   --accent: #1a73e8;
   --accent2: #7c4dff;
-  --grad: linear-gradient(135deg, var(--accent), var(--accent2));
+ 
   --danger: #d93025;
   --warn: #e37400;
   --ok: #188038;
